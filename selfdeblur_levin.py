@@ -20,22 +20,25 @@ from SSIM import SSIM
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--num_iter', type=int, default=5000, help='number of epochs of training')
-parser.add_argument('--img_size', type=int, default=[256, 256], help='size of each image dimension')
-parser.add_argument('--kernel_size', type=int, default=[21, 21], help='size of blur kernel [height, width]')
-parser.add_argument('--data_path', type=str, default="datasets/levin/", help='path to blurry image')
-parser.add_argument('--save_path', type=str, default="results/levin/", help='path to save results')
-parser.add_argument('--save_frequency', type=int, default=100, help='lfrequency to save results')
+parser.add_argument('--img_size', type=int, default=[80, 80], help='size of each image dimension')
+
+#tune
+parser.add_argument('--kernel_size', type=int, default=[5, 5], help='size of blur kernel [height, width]')
+parser.add_argument('--data_path', type=str, default="datasets/dot/", help='path to blurry image')
+parser.add_argument('--save_path', type=str, default="results/dot/", help='path to save results')
+parser.add_argument('--save_frequency', type=int, default=500, help='lfrequency to save results')
 opt = parser.parse_args()
-#print(opt)
 
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark =True
-dtype = torch.cuda.FloatTensor
+#dtype = torch.cuda.FloatTensor
+dtype = torch.FloatTensor
 
 warnings.filterwarnings("ignore")
 
-files_source = glob.glob(os.path.join(opt.data_path, '*.png'))
+files_source = glob.glob(os.path.join(opt.data_path, '*.bmp'))
 files_source.sort()
+print(files_source)
 save_path = opt.save_path
 os.makedirs(save_path, exist_ok=True)
 
@@ -43,10 +46,12 @@ os.makedirs(save_path, exist_ok=True)
 for f in files_source:
     INPUT = 'noise'
     pad = 'reflection'
+    # learning rate
     LR = 0.01
     num_iter = opt.num_iter
-    reg_noise_std = 0.001
-
+    
+    #reg_noise_std = 0.001
+    reg_noise_std = 0.0001
     path_to_image = f
     imgname = os.path.basename(f)
     imgname = os.path.splitext(imgname)[0]
@@ -70,9 +75,7 @@ for f in files_source:
 
     _, imgs = get_image(path_to_image, -1) # load image and convert to np.
     y = np_to_torch(imgs).type(dtype)
-
     img_size = imgs.shape
-    print(imgname)
     # ######################################################################
     padh, padw = opt.kernel_size[0]-1, opt.kernel_size[1]-1
     opt.img_size[0], opt.img_size[1] = img_size[1]+padh, img_size[2]+padw
@@ -84,6 +87,8 @@ for f in files_source:
 
     net_input = get_noise(input_depth, INPUT, (opt.img_size[0], opt.img_size[1])).type(dtype)
 
+
+# architecture can be tuned
     net = skip( input_depth, 1,
                 num_channels_down = [128, 128, 128, 128, 128],
                 num_channels_up   = [128, 128, 128, 128, 128],
@@ -103,7 +108,7 @@ for f in files_source:
     net_kernel = fcn(n_k, opt.kernel_size[0]*opt.kernel_size[1])
     net_kernel = net_kernel.type(dtype)
 
-    # Losses
+    # Losses: can be tuned or restructured
     mse = torch.nn.MSELoss().type(dtype)
     ssim = SSIM().type(dtype)
 
@@ -132,7 +137,9 @@ for f in files_source:
         out_k_m = out_k.view(-1,1,opt.kernel_size[0],opt.kernel_size[1])
         # print(out_k_m)
         out_y = nn.functional.conv2d(out_x, out_k_m, padding=0, bias=None)
-
+        
+        ## why uses SSIM after 1000 steps? add more terms in total loss for 
+        ## sharper images
         if step < 1000:
             total_loss = mse(out_y,y) 
         else:
@@ -143,18 +150,20 @@ for f in files_source:
 
         if (step+1) % opt.save_frequency == 0:
             #print('Iteration %05d' %(step+1))
+            imgname_now = imgname + "_iter_" + str(step+1)
 
-            save_path = os.path.join(opt.save_path, '%s_x.png'%imgname)
+            save_path = os.path.join(opt.save_path,  '%s_x.png'%imgname_now)
             out_x_np = torch_to_np(out_x)
             out_x_np = out_x_np.squeeze()
             out_x_np = out_x_np[padh//2:padh//2+img_size[1], padw//2:padw//2+img_size[2]]
             imsave(save_path, out_x_np)
 
-            save_path = os.path.join(opt.save_path, '%s_k.png'%imgname)
+            save_path = os.path.join(opt.save_path,'%s_k.png'%imgname_now)
             out_k_np = torch_to_np(out_k_m)
             out_k_np = out_k_np.squeeze()
             out_k_np /= np.max(out_k_np)
             imsave(save_path, out_k_np)
 
-            torch.save(net, os.path.join(opt.save_path, "%s_xnet.pth" % imgname))
-            torch.save(net_kernel, os.path.join(opt.save_path, "%s_knet.pth" % imgname))
+        if step == num_iter -1:
+            torch.save(net, os.path.join(opt.save_path, "%s_xnet.pth" % imgname_now))
+            torch.save(net_kernel, os.path.join(opt.save_path, "%s_knet.pth" % imgname_now))
