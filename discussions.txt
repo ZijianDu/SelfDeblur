@@ -1,0 +1,6 @@
+1. why loss function is only a simple MSE of k*x-y? what is the limit of the learning process? 
+blurry image y? how should the loss function be modified for sharper images
+2. why use SSIM in later training steps
+3. what happens if use deblurred results for y, does it help further improve sharpness?
+what if uses edge enhanced version of blurry image y as y
+4. what is the effects of noise level?

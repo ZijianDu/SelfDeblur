@@ -19,14 +19,14 @@ from utils.common_utils import *
 from SSIM import SSIM
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--num_iter', type=int, default=5000, help='number of epochs of training')
-parser.add_argument('--img_size', type=int, default=[80, 80], help='size of each image dimension')
+parser.add_argument('--num_iter', type=int, default=1000, help='number of epochs of training')
+parser.add_argument('--img_size', type=int, default= [256,256], help='size of each image dimension')
 
 #tune
-parser.add_argument('--kernel_size', type=int, default=[5, 5], help='size of blur kernel [height, width]')
-parser.add_argument('--data_path', type=str, default="datasets/dot/", help='path to blurry image')
-parser.add_argument('--save_path', type=str, default="results/dot/", help='path to save results')
-parser.add_argument('--save_frequency', type=int, default=500, help='lfrequency to save results')
+parser.add_argument('--kernel_size', type=int, default=[10, 10], help='size of blur kernel [height, width]')
+parser.add_argument('--data_path', type=str, default="datasets/lowcurrent", help='path to blurry image')
+parser.add_argument('--save_path', type=str, default="results/lowcurrent", help='path to save results')
+parser.add_argument('--save_frequency', type=int, default=50, help='lfrequency to save results')
 opt = parser.parse_args()
 
 torch.backends.cudnn.enabled = True
@@ -36,7 +36,7 @@ dtype = torch.FloatTensor
 
 warnings.filterwarnings("ignore")
 
-files_source = glob.glob(os.path.join(opt.data_path, '*.bmp'))
+files_source = glob.glob(os.path.join(opt.data_path, '10_iter_950_x.png'))
 files_source.sort()
 print(files_source)
 save_path = opt.save_path
@@ -48,10 +48,11 @@ for f in files_source:
     pad = 'reflection'
     # learning rate
     LR = 0.01
+    #LR = 0.01
     num_iter = opt.num_iter
     
     #reg_noise_std = 0.001
-    reg_noise_std = 0.0001
+    reg_noise_std = 0.2
     path_to_image = f
     imgname = os.path.basename(f)
     imgname = os.path.splitext(imgname)[0]
@@ -94,7 +95,7 @@ for f in files_source:
                 num_channels_up   = [128, 128, 128, 128, 128],
                 num_channels_skip = [16, 16, 16, 16, 16],
                 upsample_mode='bilinear',
-                need_sigmoid=True, need_bias=True, pad=pad, act_fun='LeakyReLU')
+                need_sigmoid=True, need_relu = False, need_bias=True, pad=pad, act_fun='LeakyReLU')
 
     net = net.type(dtype)
 
@@ -138,12 +139,15 @@ for f in files_source:
         # print(out_k_m)
         out_y = nn.functional.conv2d(out_x, out_k_m, padding=0, bias=None)
         
-        ## why uses SSIM after 1000 steps? add more terms in total loss for 
+        ## experiment with using SSIM score after certain iteration so that the image 
+        ## does not converge to noisy version of the original noisy image
         ## sharper images
+        #if step < 1000:
         if step < 1000:
             total_loss = mse(out_y,y) 
         else:
             total_loss = 1-ssim(out_y, y) 
+            #total_loss = 1-ssim(out_y, y)*ssim(out_y, y)
 
         total_loss.backward()
         optimizer.step()
