@@ -1,3 +1,10 @@
 # Default ignored files
 /shelf/
 /workspace.xml
+*.jpg
+*.jpeg
+*.png
+*.tiff
+*.png
+*.bmp
+*.pth
