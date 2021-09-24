@@ -120,7 +120,18 @@ def get_image(path, imsize=-1):
     return img, img_np
 
 
-
+## define get kernel function s.t. intermediate learnt kernel can be used as input
+'''
+def get_kernel(input_depth, spatial_size, image_source):
+    if isinstance(spatial_size, int):
+        spatial_size = (spatial_size, spatial_size)
+    shape = [1, input_depth, spatial_size[0], spatial_size[1]] 
+    net_input = np.zeros(shape)
+    im = Image.open(image_source)
+    net_input[0,:, spatial_size[0], spatial_size[1]] = np.array(im)
+ '''   
+    
+    
 def fill_noise(x, noise_type):
     """Fills tensor `x` with noise of type `noise_type`."""
     torch.manual_seed(0)
